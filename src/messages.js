@@ -1,10 +1,11 @@
 const { convertIso8601ToEpochSeconds } = require('./dateHelper');
 
-function convertJiraKeyToUrl(jiraId) {
-    return `https://tools.hmcts.net/jira/browse/${jiraId}`;
-}
+const config = require("config");
 
-const config = require('config')
+function convertJiraKeyToUrl(jiraId) {
+    const browseUrl = config.get("jira.browse_url");
+    return `${browseUrl.replace(/\/+$/, "")}/browse/${jiraId}`;
+}
 
 const slackChannelId = config.get('slack.report_channel_id')
 const slackMessageIdRegex = new RegExp(`${slackChannelId}\/(.*)\\|`)
@@ -51,6 +52,8 @@ function helpRequestRaised({
     priority,
     environment,
     references,
+    replicateSteps,
+    testAccount,
     jiraId
 }) {
     return [
@@ -326,10 +329,10 @@ function openHelpRequestBlocks() {
                         "emoji": true
                     },
                     "options": [
-                        option('1-Highest'),
-                        option('2-High'),
-                        option('3-Medium'),
-                        option('4-Low'),
+                        option('Highest'),
+                        option('High'),
+                        option('Medium'),
+                        option('Low'),
                     ],
                     "action_id": "priority"
                 },
@@ -370,15 +373,15 @@ function openHelpRequestBlocks() {
                 "optional": true,
                 "element": {
                     "type": "plain_text_input",
-                    "action_id": "references",
+                    "action_id": "title",
                     "placeholder": {
                         "type": "plain_text",
-                        "text": "Related Jira/SNow References..."
+                        "text": "Any relevant ticket references"
                     }
                 },
                 "label": {
                     "type": "plain_text",
-                    "text": "References"
+                    "text": "Jira/Halo references"
                 }
             },
             {
@@ -397,6 +400,7 @@ function openHelpRequestBlocks() {
                         option('Preview / Dev', 'dev'),
                         option('Production'),
                         option('Perftest / Test', 'test'),
+                        option('Demo'),
                         option('ITHC'),
                         option('N/A', 'none')
                     ],
@@ -419,6 +423,39 @@ function openHelpRequestBlocks() {
                 "label": {
                     "type": "plain_text",
                     "text": "Issue description",
+                    "emoji": true
+                }
+            },
+            {
+                "type": "input",
+                "block_id": "replicateSteps",
+                "element": {
+                    "type": "plain_text_input",
+                    "multiline": true,
+                    "action_id": "replicateSteps"
+                },
+                "label": {
+                    "type": "plain_text",
+                    "text": "Steps to replicate",
+                    "emoji": true
+                }
+            },
+            {
+                "type": "input",
+                "block_id": "testAccount",
+                "optional": true,
+                "element": {
+                    "type": "plain_text_input",
+                    "multiline": false,
+                    "action_id": "testAccount",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Username / Password used to replicate issue"
+                    }
+                },
+                "label": {
+                    "type": "plain_text",
+                    "text": "Test account",
                     "emoji": true
                 }
             },
@@ -494,7 +531,7 @@ function openHelpRequestBlocks() {
                     "emoji": true
                 }
             },
-            
+
         ],
         "type": "modal",
         callback_id: 'create_help_request'

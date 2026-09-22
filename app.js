@@ -16,7 +16,8 @@ const {
     resolveHelpRequestBlocks,
     helpRequestDocumentation,
 } = require("./src/messages");
-const { App, WorkflowStep } = require('@slack/bolt');
+const { App, LogLevel, SocketModeReceiver, WorkflowStep } = require('@slack/bolt');
+const crypto = require('crypto')
 const {
     addCommentToHelpRequestResolve,
     addCommentToHelpRequest,
@@ -30,6 +31,9 @@ const {
     updateHelpRequestDescription,
     getIssueDescription, markAsDuplicate
 } = require("./src/service/persistence");
+const appInsights = require('./src/modules/appInsights')
+
+appInsights.enableAppInsights()
 
 const app = new App({
     token: config.get('slack.bot_token'), //disable this if enabling OAuth in socketModeReceiver
@@ -136,7 +140,7 @@ const ws = new WorkflowStep('superbot_help_request', {
         // form
         await ack();
         const { values } = view.state;
-        
+
         console.log('Slack workflow has been changed: ' + JSON.stringify(values));
 
         // names/paths of these values must match those in the
@@ -215,6 +219,8 @@ const ws = new WorkflowStep('superbot_help_request', {
             team: inputs.team.value || "None",
             description: inputs.desc.value,
             analysis: inputs.alsys.value,
+            replicateSteps: inputs.replicateSteps.value,
+            testAccount: inputs.testAccount.value || "None",
             references: inputs.references.value
         }
 
@@ -240,7 +246,7 @@ const ws = new WorkflowStep('superbot_help_request', {
                 jiraId
             })
         });
-      
+
         if (!result.ok)
         {
             console.log("An error occurred when posting to Slack: " + JSON.stringify(result));
@@ -367,6 +373,8 @@ app.view('create_help_request', async ({ ack, body, view, client }) => {
             environment: view.state.values.environment.environment.selected_option?.text.text || "None",
             description: view.state.values.description.description.value,
             analysis: view.state.values.analysis.analysis.value,
+            replicateSteps: view.state.values.replicateSteps.replicateSteps.value,
+            testAccount: view.state.values.testAccount?.testAccount?.value || "None",
         }
 
         const jiraId = await createHelpRequest({
@@ -577,7 +585,7 @@ app.view('document_help_request', async ({ ack, body, view, client }) => {
             text: 'New support request raised',
             blocks: blocks
         });
-        
+
         const documentation = {
             what: body.view.state.values.what_block.what.value,
             where: body.view.state.values.where_block.where.value,

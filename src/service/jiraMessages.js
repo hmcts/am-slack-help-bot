@@ -7,7 +7,9 @@ function optionalField(prefix, value) {
 
 function mapFieldsToDescription(
     {
+        replicateSteps,
         references,
+        testAccount,
         environment,
         description,
         analysis,
@@ -16,7 +18,7 @@ function mapFieldsToDescription(
     return `
 h6. _This is an automatically generated ticket created from Slack, do not reply or update in here, [view in Slack|${slackLink}]_
 
-${optionalField('SNow/Jira References', references)}
+${optionalField('Jira/Halo references', references)}
 
 ${optionalField('Environment', environment)}
 
@@ -24,7 +26,13 @@ ${optionalField('Environment', environment)}
 
 ${description}
 
-*Analysis done so far*: 
+*Steps to replicate*
+
+${replicateSteps}
+
+*Test Account*: ${testAccount}
+
+*Analysis done so far*:
 ${analysis}
 
 `
@@ -43,13 +51,13 @@ function createResolveComment({what, where, how}) {
 return `
 h6. _Ticket resolved - see documented resolution:_
 
-h6. Issue type: 
+h6. Issue type:
 ${what}
 
 h6. Where the issue was:
 ${where}
 
-h6. How it was resolved: 
+h6. How it was resolved:
 ${how}
 `
 }
