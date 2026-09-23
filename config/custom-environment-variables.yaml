@@ -5,6 +5,9 @@ slack:
   report_channel_id: SLACK_REPORT_CHANNEL_ID
 
 jira:
+  api_url: JIRA_API_URL
+  browse_url: JIRA_BROWSE_URL
+  cloud_id: JIRA_CLOUD_ID
   start_transition_id: JIRA_START_TRANSITION_ID
   done_transition_id: JIRA_DONE_TRANSITION_ID
   project: JIRA_PROJECT
@@ -12,3 +15,6 @@ jira:
   issue_type_name: JIRA_ISSUE_TYPE_NAME
   username: JIRA_USERNAME
   api_token: JIRA_API_TOKEN
+
+app_insights:
+  instrumentation_key: APP_INSIGHTS_INSTRUMENTATION_KEY

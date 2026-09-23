@@ -2,7 +2,8 @@ const JiraApi = require('jira-client');
 const config = require('config')
 const {createComment, mapFieldsToDescription, createResolveComment} = require("./jiraMessages");
 
-const systemUser = config.get('jira.username')
+let systemAccountId;
+let systemAccountIdPromise;
 
 const issueTypeId = config.get('jira.issue_type_id')
 const issueTypeName = config.get('jira.issue_type_name')
@@ -13,13 +14,39 @@ const jiraStartTransitionId = config.get('jira.start_transition_id')
 const jiraDoneTransitionId = config.get('jira.done_transition_id')
 const extractProjectRegex = new RegExp(`(${jiraProject}-[\\d]+)`)
 
+const jiraApiUrl = new URL(config.get("jira.api_url"));
+if (config.has("jira.cloud_id")) {
+    jiraApiUrl.pathname = `${jiraApiUrl.pathname.replace(/\/+$/, "")}/${config.get(
+        "jira.cloud_id",
+    )}`;
+}
 const jira = new JiraApi({
-    protocol: 'https',
-    host: 'tools.hmcts.net/jira',
-    bearer: config.get('jira.api_token'),
+    protocol: jiraApiUrl.protocol.replace(":", ""),
+    host: jiraApiUrl.hostname,
+    port: jiraApiUrl.port,
+    base: jiraApiUrl.pathname.replace(/\/+$/, ""),
+    username: config.get("jira.username"),
+    password: config.get("jira.api_token"),
     apiVersion: '2',
     strictSSL: true
 });
+
+async function getSystemAccountId() {
+    if (systemAccountId) return systemAccountId;
+    if (!systemAccountIdPromise) {
+        systemAccountIdPromise = jira
+            .getCurrentUser()
+            .then((user) => {
+                systemAccountId = user?.accountId;
+                return systemAccountId;
+            })
+            .catch((err) => {
+                console.log("Unable to resolve Jira service account ID", err);
+                return undefined;
+            });
+    }
+    return systemAccountIdPromise;
+}
 
 async function resolveHelpRequest(jiraId) {
     try {
@@ -107,7 +134,7 @@ async function assignHelpRequest(issueId, email) {
     const user = await convertEmail(email)
 
     try {
-        await jira.updateAssignee(issueId, user)
+        await jira.updateAssigneeWithId(issueId, user);
     } catch(err) {
         console.log("Error assigning help request in jira", err)
     }
@@ -138,19 +165,19 @@ function extraJiraId(text) {
 
 async function convertEmail(email) {
     if (!email) {
-        return systemUser
+        return getSystemAccountId();
     }
 
     try {
         res = await jira.searchUsers(options = {
-            username: email,
+            query: email,
             maxResults: 1
         })
 
-        return res[0].name
+        return res[0].accountId || res[0].name;
     } catch(ex) {
         console.log("Querying username failed: " + ex)
-        return systemUser
+        return getSystemAccountId();
     }
 }
 
@@ -167,11 +194,19 @@ async function createHelpRequestInJira(summary, project, user, labels) {
             },
             labels: ['created-from-slack', 'AM', 'AM_DTS_SUPPORT', ...labels],
             description: undefined,
-            fixVersions: [ { name: "No Release Required" } ],
-            components: [ { name: "No Components" } ],
-            customfield_10004: 0, // default story point to 0
+            ...(user ? { reporter: { accountId: user } } : {}),
         }
     });
+
+    try {
+        await jira.transitionIssue(issue.key, {
+            transition: {
+                id: "191" // Move to "Ready"
+            }
+        })
+    } catch (err) {
+        console.log("Unable to transition new issue", err)
+    }
 
     return issue;
 }
@@ -192,8 +227,9 @@ async function createHelpRequest({
     try {
         result = await createHelpRequestInJira(summary, project, user, labels);
     } catch(err) {
-        // in case the user doesn't exist in Jira use the system user
-        result = await createHelpRequestInJira(summary, project, systemUser, labels);
+        const fallbackAccountId = await getSystemAccountId();
+
+        result = await createHelpRequestInJira(summary, project, fallbackAccountId, labels);
 
         if (!result.key) {
             console.log("Error creating help request in jira", JSON.stringify(result));
